@@ -1,13 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import LutScene from './LutScene';
+import useFileDrop from '../hooks/useFileDrop';
 import './PreviewPanel.css';
+
+const isMediaFile = (file) =>
+    file.type.startsWith('image/') || file.type.startsWith('video/');
 
 const PreviewPanel = ({ selectedLut, media, setMedia, intensity, setIntensity }) => {
     const [sliderPos, setSliderPos] = useState(0.5);
     const containerRef = useRef(null);
     const isDragging = useRef(false);
     const fileInputRef = useRef(null);
+    const lastUrlRef = useRef(null);
 
     const handleMouseDown = (e) => {
         isDragging.current = true;
@@ -29,16 +34,26 @@ const PreviewPanel = ({ selectedLut, media, setMedia, intensity, setIntensity })
         document.removeEventListener('mouseup', handleMouseUp);
     };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
+    const loadMedia = useCallback((files) => {
+        const file = files[0];
         if (!file) return;
+        // Release the previous blob before swapping in the new one
+        if (lastUrlRef.current) URL.revokeObjectURL(lastUrlRef.current);
         const url = URL.createObjectURL(file);
+        lastUrlRef.current = url;
         const type = file.type.startsWith('video') ? 'video' : 'image';
         setMedia({ url, type, name: file.name });
+    }, [setMedia]);
+
+    const handleFileChange = (e) => {
+        loadMedia(Array.from(e.target.files || []));
+        e.target.value = ''; // allow re-picking the same file
     };
 
+    const { isDragOver, dropProps } = useFileDrop(loadMedia, isMediaFile);
+
     return (
-        <div className="preview-panel-container">
+        <div className="preview-panel-container" {...dropProps}>
             <div className="toolbar">
                 <button className="media-btn" onClick={() => fileInputRef.current?.click()}>
                     Open Media
@@ -65,11 +80,11 @@ const PreviewPanel = ({ selectedLut, media, setMedia, intensity, setIntensity })
                 </div>
             </div>
 
-            <div className="canvas-container" ref={containerRef}>
+            <div className={`canvas-container ${isDragOver ? 'drag-over' : ''}`} ref={containerRef}>
                 {!media ? (
                     <div className="placeholder-text">
                         <p>No media loaded</p>
-                        <p>Select an image or video to start</p>
+                        <p>Drop an image or video here, or click "Open Media"</p>
                     </div>
                 ) : (
                     <>
@@ -101,6 +116,12 @@ const PreviewPanel = ({ selectedLut, media, setMedia, intensity, setIntensity })
                         <div className="label-overlay label-before" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>Before</div>
                         <div className="label-overlay label-after" style={{ opacity: sliderPos < 0.9 ? 1 : 0 }}>After</div>
                     </>
+                )}
+
+                {isDragOver && (
+                    <div className="drop-overlay">
+                        <span>Drop image or video to preview</span>
+                    </div>
                 )}
             </div>
         </div>

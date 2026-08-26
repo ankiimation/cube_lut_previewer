@@ -3,6 +3,7 @@
     flex-direction: column;
     gap: 16px;
     height: 100%;
+    position: relative;
 }
 
 .upload-section {
